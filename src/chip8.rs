@@ -1,3 +1,5 @@
+use rand::Rng;
+
 
 pub struct Chip8 {
     pub memory: [u8; 4096],
@@ -64,13 +66,142 @@ impl Chip8 {
     }
 
     pub fn execute(&mut self, opcode: u16) {
-        let top = (opcode & 0xF000);
+        //from cogwork's tech reference
+        let nnn = (opcode & 0x0FFF);
         let n = opcode & 0x000F;
         let x = (opcode & 0x0F00) >> 8;
         let y = (opcode & 0x00F0) >> 4;
-        let nnn = (opcode & 0x0FFF);
         let kk = (opcode & 0x00FF);
 
+
+        let top = (opcode & 0xF000);
+
+        match top{
+            0x0000 => {
+                match kk {
+                    0x00E0 => {
+                        // 00E0: CLS
+                        self.display = [false; 64 * 32];
+                    }
+                    0x00EE => {
+                        // 00EE: RET
+                        self.pc = self.stack[self.sp as usize];
+                        self.sp -= 1;
+                    }
+                    _ => {
+                        // SYS addr
+                        // 0x0NNN: legacy
+                    }
+                }
+            }
+            0x1000 => {
+                // 1nnn: JP addr
+                self.pc = nnn;
+            }
+            0x2000 => {
+                // 2nnn: CALL addr
+                self.sp += 1;
+                self.stack[self.sp as usize] = self.pc;
+                self.pc = nnn;
+            }
+            0x3000 => {
+                // 3xkk: SE Vx, byte
+                if self.v[x as usize] == kk as u8 {
+                    self.pc += 2;
+                }
+            }
+            0x4000 => {
+                // 4xkk: SNE Vx, byte
+                if self.v[x as usize] != kk as u8 {
+                    self.pc += 2;
+                }
+            }
+            0x5000 => {
+                // 5xy0: SE Vx, Vy
+                if self.v[x as usize] == self.v[y as usize] {
+                    self.pc += 2;
+                }
+            }
+            0x6000 => {
+                // 6xkk: LD Vx, byte
+                self.v[x as usize] = kk as u8;
+            }
+            0x7000 => {
+                // 7xkk: ADD Vx, byte
+                self.v[x as usize] = self.v[x as usize].wrapping_add(kk as u8);
+            }
+            0x8000 => {
+                match n {
+                    0x0 => {
+                        // 8xy0: LD Vx, Vy
+                        self.v[x as usize] = self.v[y as usize];
+                    }
+                    0x1 => {
+                        // 8xy1: OR Vx, Vy
+                        self.v[x as usize] |= self.v[y as usize];
+                    }
+                    0x2 => {
+                        // 8xy2: AND Vx, Vy
+                        self.v[x as usize] &= self.v[y as usize];
+                    }
+                    0x3 => {
+                        // 8xy3: XOR Vx, Vy
+                        self.v[x as usize] ^= self.v[y as usize];
+                    }
+                    0x4 => {
+                        // 8xy4: ADD Vx, Vy
+                        let (result, overflow) = self.v[x as usize].overflowing_add(self.v[y as usize]);
+                        self.v[x as usize] = result;
+                        self.v[0xF] = overflow as u8;
+                    }
+                    0x5 => {
+                        // 8xy5: SUB Vx, Vy
+                        let (result, borrow) = self.v[x as usize].overflowing_sub(self.v[y as usize]);
+                        self.v[x as usize] = result;
+                        self.v[0xF] = !borrow as u8;
+                    }
+                    0x6 => {
+                        // 8xy6: SHR Vx {, Vy}
+                        let lsb = self.v[x as usize] & 0x1;
+                        self.v[x as usize] >>= 1;
+                        self.v[0xF] = lsb;
+                    }
+                    0x7 => {
+                        // 8XY7: SUBN Vx, Vy
+                        let (result, borrow) = self.v[y as usize].overflowing_sub(self.v[x as usize]);
+                        self.v[x as usize] = result;
+                        self.v[0xF] = !borrow as u8;
+                    }
+                    0xE => {
+                        // 8XYE: SHL Vx {, Vy}
+                        let msb = (self.v[x as usize] & 0x80) >> 7;
+                        self.v[x as usize] <<= 1;
+                        self.v[0xF] = msb;
+                    }
+                }
+            }
+            0x9000 => {
+                // 9xy0: SNE Vx, Vy
+                if self.v[x as usize] != self.v[y as usize] {
+                    self.pc += 2;
+                }
+            }
+            0xA000 => {
+                // Annn: LD I, addr
+                self.i = nnn;
+            }
+            0xB000 => {
+                //Bnnn: JP V0, addr
+                let value = nnn + (self.v[0x0] as u16);
+                self.pc = value;
+            }
+            0xC000 => {
+                // Cxkk: RND Vx, byte
+                let random_byte = rand::thread_rng().gen::<u8>();
+                self.v[x as usize] = random_byte & kk;
+            }
+        }
+        
         //todo the match pattern
     }
 
