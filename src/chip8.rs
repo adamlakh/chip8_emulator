@@ -91,6 +91,7 @@ impl Chip8 {
                     _ => {
                         // SYS addr
                         // 0x0NNN: legacy
+                        println!("Unimplemented opcode: {:#06X}", opcode);
                     }
                 }
             }
@@ -178,6 +179,9 @@ impl Chip8 {
                         self.v[x as usize] <<= 1;
                         self.v[0xF] = msb;
                     }
+                    _ => {
+                        println!("Unknown opcode: {:#06X}", opcode);
+                    }
                 }
             }
             0x9000 => {
@@ -198,11 +202,114 @@ impl Chip8 {
             0xC000 => {
                 // Cxkk: RND Vx, byte
                 let random_byte = rand::thread_rng().gen::<u8>();
-                self.v[x as usize] = random_byte & kk;
+                self.v[x as usize] = random_byte & kk as u8;
+            }
+            0xD000 => {
+                // Dxyn: DRW Vx, Vy, nibble
+                let vx = self.v[x as usize];
+                let vy = self.v[y as usize];
+                self.v[0xF] = 0;
+
+                for row in 0..n {
+                    let sprite = self.memory[(self.i + row) as usize];
+
+                    for col in 0..8 {
+                        if sprite & (1 << (7 - col)) != 0 {
+                            let px = (vx as usize + col) % 64;
+                            let py = (vy as usize + row as usize) % 32;
+                            let index = py * 64 + px;
+
+                            if self.display[index]{
+                                self.v[0xF] = 1;
+                            }
+                            self.display[index] ^= true;
+                        }
+                    }
+                }
+            }
+            0xE000 => {
+                match kk {
+                    0x009E => {
+                        // Ex9E: SKP Vx
+                        if self.keypad[self.v[x as usize] as usize] {
+                            self.pc += 2;
+                        }
+                    }
+                    0x00A1 => {
+                       //ExA1: SKNP Vx 
+                       if !self.keypad[self.v[x as usize] as usize] {
+                            self.pc += 2;
+                        }
+                    }
+                    _ => {
+                        println!("Unknown opcode: {:#06X}", opcode);
+                    }
+                }
+            }
+            0xF000 => {
+                match kk {
+                    0x0007 => {
+                        // Fx07: LD Vx, DT
+                        self.v[x as usize] = self.delay_timer;
+                    }
+                    0x000A => {
+                        // Fx0A: LD Vx, K
+                        let mut key_pressed = false;
+
+                        for key in 0..16 {
+                            if self.keypad[key] {
+                                self.v[x as usize] = key as u8;
+                                key_pressed = true;
+                            }
+                        }
+
+                        if !key_pressed {
+                            self.pc -= 2;
+                        }
+                    }
+                    0x0015 => {
+                        // Fx15: LD DT, Vx
+                        self.delay_timer = self.v[x as usize];
+                    }
+                    0x0018 => {
+                        // Fx18 - LD ST, Vx
+                        self.sound_timer = self.v[x as usize];
+                    }
+                    0x001E => {
+                        // Fx1E - ADD I, Vx
+                        self.i = self.i + self.v[x as usize] as u16;
+                    }
+                    0x0029 => {
+                        // Fx29 - LD F, Vx
+                        self.i = self.v[x as usize] as u16 * 5;
+                    }
+                    0x0033 => {
+                        // Fx33 - LD B, Vx
+                        self.memory[self.i as usize] = self.v[x as usize] / 100;
+                        self.memory[(self.i + 1) as usize] = (self.v[x as usize] / 10) % 10;
+                        self.memory[(self.i + 2) as usize] = self.v[x as usize] % 10;
+                    }
+                    0x0055 => {
+                        // Fx55 - LD [I], Vx
+                        for register in 0..x + 1 {
+                            self.memory[(self.i + register) as usize] = self.v[register as usize];
+                        }
+                    }
+                    0x0065 => {
+                        // Fx65 - LD Vx, [I]
+                        for register in 0..x + 1 {
+                            self.v[register as usize] = self.memory[(self.i + register) as usize];
+                        }
+                    }
+                    _ => {
+                        println!("Unknown opcode: {:#06X}", opcode);
+                    }
+                }
+            }
+            _ => {
+                println!("Unknown opcode: {:#06X}", opcode);
             }
         }
-        
-        //todo the match pattern
     }
 
     pub fn cycle(&mut self) {
