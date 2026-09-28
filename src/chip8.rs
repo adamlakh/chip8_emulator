@@ -67,14 +67,14 @@ impl Chip8 {
 
     pub fn execute(&mut self, opcode: u16) {
         //from cogwork's tech reference
-        let nnn = (opcode & 0x0FFF);
+        let nnn = opcode & 0x0FFF;
         let n = opcode & 0x000F;
         let x = (opcode & 0x0F00) >> 8;
         let y = (opcode & 0x00F0) >> 4;
-        let kk = (opcode & 0x00FF);
+        let kk = opcode & 0x00FF;
 
 
-        let top = (opcode & 0xF000);
+        let top = opcode & 0xF000;
 
         match top{
             0x0000 => {
@@ -201,7 +201,7 @@ impl Chip8 {
             }
             0xC000 => {
                 // Cxkk: RND Vx, byte
-                let random_byte = rand::thread_rng().gen::<u8>();
+                let random_byte = rand::thread_rng().r#gen::<u8>();
                 self.v[x as usize] = random_byte & kk as u8;
             }
             0xD000 => {
