@@ -1,9 +1,28 @@
 mod chip8;
 use chip8::Chip8;
-use minifb::{Window, WindowOptions, Scale};
+use minifb::{Window, WindowOptions, Scale, Key};
 use std::fs;
 use std::io;
+
 fn main() {
+    const KEYMAP: [Key; 16] = [
+        Key::X,    // 0
+        Key::Key1, // 1
+        Key::Key2, // 2
+        Key::Key3, // 3
+        Key::Q,    // 4
+        Key::W,    // 5
+        Key::E,    // 6
+        Key::A,    // 7
+        Key::S,    // 8
+        Key::D,    // 9
+        Key::Z,    // A
+        Key::C,    // B
+        Key::Key4, // C
+        Key::R,    // D
+        Key::F,    // E
+        Key::V,    // F
+    ];
 
     println!("Enter ROM file name:");
 
@@ -39,14 +58,18 @@ fn main() {
     }
 
     while window.is_open() {
-        for _ in 0..10 {
+        for key_index in 0..KEYMAP.len() {
+            chip8.keypad[key_index] = window.is_key_down(KEYMAP[key_index]);
+        }
+
+        for _ in 0..7 {
             chip8.cycle();
         }
         chip8.tick_time();
 
         for i in 0..buffer.len() {
             if chip8.display[i] {
-                buffer[i] = 0x00FFFF;
+                buffer[i] = 0x0000FFFF;
             } else {
                 buffer[i] = 0x00000000;
             }
